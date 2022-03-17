@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-
-from locale import currency
 from typing import *
 import sys
+from lparser import *
 from lexer import *
 from os import path
 
@@ -80,7 +79,14 @@ if __name__ == '__main__' and '__file__' in globals():
 
 
 		lexer = Lexer(basename, program_path)
-		print(lexer.make_tokens())
+		tokens, error = lexer.make_tokens()
+		parser = Parser(tokens)
+		ast = parser.parse()
+		if ast.error:
+			print(ast.error.as_string())
+			exit(1)
+		else:
+			print(ast.node)
 
 		# print("[INFO] Generating %s" % (basepath + ".asm"))
 		# program = load_program_from_file(program_path)
