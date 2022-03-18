@@ -1,3 +1,4 @@
+from asyncio import current_task
 from lexer import *
 
 class NumberNode:
@@ -23,6 +24,16 @@ class UnaryOpNode:
 
 	def __repr__(self):
 		return f'({self.op_tok}, {self.node})'
+
+class PrintOpNode:
+	def __init__(self, op_tok, node):
+		self.op_tok = op_tok
+		self.node = node
+
+	def __repr__(self):
+		return f'({self.op_tok}, {self.node})'
+
+
 
 class ParseResult:
 	def __init__(self):
@@ -98,6 +109,7 @@ class Parser:
 					"Expected ')'"
 				))
 
+		print(tok)
 		return res.failure(InvalidSyntaxError(
 			tok.pos_start, tok.pos_end,
 			"Expected int or float"
@@ -107,6 +119,31 @@ class Parser:
 		return self.bin_op(self.factor, (TokenType.MUL, TokenType.DIV))
 
 	def expr(self):
+		res = ParseResult()
+		if self.current_tok.matches(TokenType.KEYWORD, 'print'):
+			tok = self.current_tok
+			res.register(self.advance())
+
+			if self.current_tok.type != TokenType.LPAREN:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					"Expected '('"
+				))
+			
+			res.register(self.advance())
+
+			expr = res.register(self.expr())
+
+			if self.current_tok.type != TokenType.RPAREN:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					"Expected ')'"
+				))
+
+			res.register(self.advance())
+
+			if res.error: return res
+			return res.success(PrintOpNode(tok, expr))
 		return self.bin_op(self.term, (TokenType.PLUS, TokenType.MINUS))
 
 	###################################

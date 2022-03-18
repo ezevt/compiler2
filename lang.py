@@ -1,9 +1,17 @@
 from dataclasses import dataclass
 from typing import *
 import sys
+import subprocess
+import shlex
+from compiler import *
 from lparser import *
 from lexer import *
 from os import path
+
+def cmd_call_echoed(cmd):
+    print("[CMD] %s" % " ".join(map(shlex.quote, cmd)))
+    return subprocess.call(cmd)
+
 
 def usage(compiler_name):
     print("Usage: %s [OPTIONS] <SUBCOMMAND> [ARGS]" % compiler_name)
@@ -85,16 +93,15 @@ if __name__ == '__main__' and '__file__' in globals():
 		if ast.error:
 			print(ast.error.as_string())
 			exit(1)
-		else:
-			print(ast.node)
+		
+		compiler = Compiler()
+		with open(basepath + ".asm", "w") as out:
+			compiler.visit(ast.node, out)
 
-		# print("[INFO] Generating %s" % (basepath + ".asm"))
-		# program = load_program_from_file(program_path)
-		# compile_program(program, basepath + ".asm")
-		# cmd_call_echoed(["nasm", "-felf64", basepath + ".asm"])
-		# cmd_call_echoed(["ld", "-o", basepath, basepath + ".o"])
-		# if run:
-		# 	exit(cmd_call_echoed([basepath] + argv))
+		cmd_call_echoed(["nasm", "-felf64", basepath + ".asm"])
+		cmd_call_echoed(["ld", "-o", basepath, basepath + ".o"])
+		if run:
+			exit(cmd_call_echoed([basepath] + argv))
 	elif subcommand == "help":
 		usage(compiler_name)
 		exit(0)
