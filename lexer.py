@@ -18,11 +18,17 @@ class TokenType(Enum):
 	RPAREN=auto()
 	KEYWORD=auto()
 	IDENTIFIER=auto()
+	TYPE=auto()
+	EQ=auto()
 	NEWLINE=auto()
 	EOF=auto()
 
 KEYWORDS = [
 	'print'
+]
+
+TYPES = [
+	'int'
 ]
 
 class Token:
@@ -85,6 +91,9 @@ class Lexer:
 			elif self.current_char == ')':
 				tokens.append(Token(TokenType.RPAREN, pos_start=self.pos))
 				self.advance()
+			elif self.current_char == '=':
+				tokens.append(Token(TokenType.EQ, pos_start=self.pos))
+				self.advance()
 			else:
 				pos_start = self.pos.copy()
 				char = self.current_char
@@ -119,6 +128,12 @@ class Lexer:
 			id_str += self.current_char
 			self.advance()
 		
-		tok_type = TokenType.KEYWORD if id_str in KEYWORDS else TokenType.IDENTIFIER
+		tok_type = None
+		if id_str in KEYWORDS:
+			tok_type = TokenType.KEYWORD
+		elif id_str in TYPES:
+			tok_type = TokenType.TYPE
+		else:
+			tok_type = TokenType.IDENTIFIER
 		return Token(tok_type, id_str, pos_start, self.pos)
 

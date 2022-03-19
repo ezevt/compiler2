@@ -1,3 +1,4 @@
+from ast import expr
 from asyncio import current_task
 from importlib.util import module_from_spec
 from lexer import *
@@ -34,6 +35,20 @@ class PrintOpNode:
 	def __repr__(self):
 		return f'({self.op_tok}, {self.node})'
 
+class VarAccessNode:
+	def __init__(self, var_name_tok):
+		self.var_name_tok = var_name_tok
+
+class VarAssignNode:
+	def __init__(self, var_name_tok, value_node):
+		self.var_name_tok = var_name_tok
+		self.value_node = value_node
+
+class VarReAssignNode:
+	def __init__(self, var_name_tok, value_node):
+		self.var_name_tok = var_name_tok
+		self.value_node = value_node
+
 class ListNode:
 	def __init__(self, element_nodes):
 		self.element_nodes = element_nodes
@@ -43,12 +58,12 @@ class ParseResult:
 		self.error = None
 		self.node = None
 
-	def register(self, res):
-		if isinstance(res, ParseResult):
-			if res.error: self.error = res.error
-			return res.node
+	def register_advancement(self):
+		pass
 
-		return res
+	def register(self, res):
+		if res.error: self.error = res.error
+		return res.node
 
 	def success(self, node):
 		self.node = node
@@ -116,6 +131,34 @@ class Parser:
 		return res.success(ListNode(statements))				
 
 	def statement(self):
+		res = ParseResult()
+		if self.current_tok.matches(TokenType.KEYWORD, 'print'):
+			tok = self.current_tok
+			res.register_advancement()
+			self.advance()
+
+			if self.current_tok.type != TokenType.LPAREN:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					"Expected '('"
+				))
+			
+			res.register_advancement()
+			self.advance()
+			
+			expr = res.register(self.expr())
+
+			if self.current_tok.type != TokenType.RPAREN:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					"Expected ')'"
+				))
+
+			res.register_advancement()
+			self.advance()
+
+			if res.error: return res
+			return res.success(PrintOpNode(tok, expr))
 		return self.expr()
 
 	def factor(self):
@@ -123,21 +166,39 @@ class Parser:
 		tok = self.current_tok
 
 		if tok.type in (TokenType.PLUS, TokenType.MINUS):
-			res.register(self.advance())
+			res.register_advancement()
+			self.advance()
 			factor = res.register(self.factor())
 			if res.error: return res
 			return res.success(UnaryOpNode(tok, factor))
 		
 		elif tok.type == TokenType.INT:
-			res.register(self.advance())
+			res.register_advancement()
+			self.advance()
 			return res.success(NumberNode(tok))
 
+		elif tok.type == TokenType.IDENTIFIER:
+			res.register_advancement()
+			self.advance()
+			if self.current_tok.type == TokenType.EQ:
+				res.register_advancement()
+				self.advance()
+
+				expr = res.register(self.expr())
+				if res.error: return res
+
+				return res.success(VarReAssignNode(tok, expr))
+			else:
+				return res.success(VarAccessNode(tok))
+
 		elif tok.type == TokenType.LPAREN:
-			res.register(self.advance())
+			res.register_advancement()
+			self.advance()
 			expr = res.register(self.expr())
 			if res.error: return res
 			if self.current_tok.type == TokenType.RPAREN:
-				res.register(self.advance())
+				res.register_advancement()
+				self.advance()
 				return res.success(expr)
 			else:
 				return res.failure(InvalidSyntaxError(
@@ -155,30 +216,33 @@ class Parser:
 
 	def expr(self):
 		res = ParseResult()
-		if self.current_tok.matches(TokenType.KEYWORD, 'print'):
-			tok = self.current_tok
-			res.register(self.advance())
+		if self.current_tok.matches(TokenType.TYPE, 'int'):
+			res.register_advancement()
+			self.advance()
 
-			if self.current_tok.type != TokenType.LPAREN:
+			if self.current_tok.type != TokenType.IDENTIFIER:
 				return res.failure(InvalidSyntaxError(
 					self.current_tok.pos_start, self.current_tok.pos_end,
-					"Expected '('"
+					"Expected identifier"
 				))
 			
-			res.register(self.advance())
+			var_name = self.current_tok
+			res.register_advancement()
+			self.advance()
 
-			expr = res.register(self.expr())
-
-			if self.current_tok.type != TokenType.RPAREN:
+			if self.current_tok.type != TokenType.EQ:
 				return res.failure(InvalidSyntaxError(
 					self.current_tok.pos_start, self.current_tok.pos_end,
-					"Expected ')'"
+					"Expected '='"
 				))
-
-			res.register(self.advance())
+			
+			res.register_advancement()
+			self.advance()
+			expr = res.register(self.expr())
 
 			if res.error: return res
-			return res.success(PrintOpNode(tok, expr))
+			return res.success(VarAssignNode(var_name, expr))
+
 		return self.bin_op(self.term, (TokenType.PLUS, TokenType.MINUS))
 
 	###################################
@@ -190,7 +254,8 @@ class Parser:
 
 		while self.current_tok.type in ops:
 			op_tok = self.current_tok
-			res.register(self.advance())
+			res.register_advancement()
+			self.advance()
 			right = res.register(func())
 			if res.error: return res
 			left = BinOpNode(left, op_tok, right)

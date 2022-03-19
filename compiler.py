@@ -6,6 +6,8 @@ from os import path
 class Compiler:
 	def __init__(self):
 		self.start = True
+		self.memory_capacity = 0
+		self.variables = {}
 
 	def visit(self, node, out):
 		if self.start:
@@ -56,6 +58,9 @@ class Compiler:
 			out.write("    mov rax, 60\n")
 			out.write("    mov rdi, 0\n")
 			out.write("    syscall\n")
+			out.write("segment .bss\n")
+			out.write("mem: resb %d\n" % self.memory_capacity)
+
 		else:
 			method_name = f'visit_{type(node).__name__}'
 			method = getattr(self, method_name, self.no_visit_method)
@@ -105,3 +110,48 @@ class Compiler:
 		out.write("    ;; -- print --\n")
 		out.write("    pop rdi\n")
 		out.write("    call print\n")
+	
+	def visit_VarAssignNode(self, node, out):
+		if node.var_name_tok.value in self.variables:
+			print(CompilerError(node.var_name_tok.pos_start, 
+				node.var_name_tok.pos_end,
+				"Variable redefinition").as_string())
+			exit(1)
+		
+		self.variables[node.var_name_tok.value] = self.memory_capacity
+		self.memory_capacity += 8
+
+		self.visit(node.value_node, out)
+		out.write("    ;; -- mem --\n")
+		out.write("    mov rax, mem\n")
+		out.write("    add rax, %d\n" % self.variables[node.var_name_tok.value])
+		out.write("    pop rbx\n")
+		out.write("    mov [rax], rbx\n")
+
+	def visit_VarAccessNode(self, node, out):
+		if node.var_name_tok.value not in self.variables:
+			print(CompilerError(node.var_name_tok.pos_start, 
+				node.var_name_tok.pos_end,
+				"Variable not defined").as_string())
+			exit(1)
+
+		out.write("    ;; -- mem --\n")
+		out.write("    mov rax, mem\n")
+		out.write("    add rax, %d\n" % self.variables[node.var_name_tok.value])
+		out.write("    xor rbx, rbx\n")
+		out.write("    mov rbx, [rax]\n")
+		out.write("    push rbx\n")
+
+	def visit_VarReAssignNode(self, node, out):
+		if node.var_name_tok.value not in self.variables:
+			print(CompilerError(node.var_name_tok.pos_start, 
+				node.var_name_tok.pos_end,
+				"Variable not defined").as_string())
+			exit(1)
+		
+		self.visit(node.value_node, out)
+		out.write("    ;; -- mem --\n")
+		out.write("    mov rax, mem\n")
+		out.write("    add rax, %d\n" % self.variables[node.var_name_tok.value])
+		out.write("    pop rbx\n")
+		out.write("    mov [rax], rbx\n")
