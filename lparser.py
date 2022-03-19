@@ -1,4 +1,5 @@
 from asyncio import current_task
+from importlib.util import module_from_spec
 from lexer import *
 
 class NumberNode:
@@ -33,7 +34,9 @@ class PrintOpNode:
 	def __repr__(self):
 		return f'({self.op_tok}, {self.node})'
 
-
+class ListNode:
+	def __init__(self, element_nodes):
+		self.element_nodes = element_nodes
 
 class ParseResult:
 	def __init__(self):
@@ -72,7 +75,7 @@ class Parser:
 		return self.current_tok
 
 	def parse(self):
-		res = self.expr()
+		res = self.statements()
 		if not res.error and self.current_tok.type != TokenType.EOF:
 			return res.failure(InvalidSyntaxError(
 				self.current_tok.pos_start, self.current_tok.pos_end,
@@ -81,6 +84,39 @@ class Parser:
 		return res
 
 	###################################
+
+	def statements(self):
+		res = ParseResult()
+		statements = []
+
+		while self.current_tok.type == TokenType.NEWLINE:
+			self.advance()
+		
+		statement = res.register(self.statement())
+		if res.error: return res
+		statements.append(statement)
+
+		more_statements = True
+
+		while True:
+			newline_count = 0
+			while self.current_tok.type == TokenType.NEWLINE:
+				self.advance()
+				newline_count += 1
+			if newline_count == 0:
+				more_statements = False
+			
+			if not more_statements: break
+			statement = res.register(self.statement())
+			if res.error:
+				more_statements = False
+				continue
+			statements.append(statement)
+
+		return res.success(ListNode(statements))				
+
+	def statement(self):
+		return self.expr()
 
 	def factor(self):
 		res = ParseResult()
@@ -109,7 +145,6 @@ class Parser:
 					"Expected ')'"
 				))
 
-		print(tok)
 		return res.failure(InvalidSyntaxError(
 			tok.pos_start, tok.pos_end,
 			"Expected int or float"

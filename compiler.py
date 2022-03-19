@@ -66,8 +66,12 @@ class Compiler:
 	
 	def visit_NumberNode(self, node, out):
 		out.write("    ;; -- push int %d --\n" % node.tok.value)
-		out.write("    push rax, %d\n" % node.tok.value)
+		out.write("    push %d\n" % node.tok.value)
 		return node.tok.value
+	
+	def visit_ListNode(self, node, out):
+		for element_node in node.element_nodes:
+			self.visit(element_node, out)
 
 	def visit_BinOpNode(self, node, out):
 		self.visit(node.left_node, out)
