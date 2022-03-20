@@ -132,6 +132,33 @@ class Parser:
 
 	def statement(self):
 		res = ParseResult()
+
+		if self.current_tok.matches(TokenType.TYPE, 'int'):
+			res.register_advancement()
+			self.advance()
+			
+			if self.current_tok.type != TokenType.IDENTIFIER:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					"Expected identifier"
+				))
+			
+			var_name = self.current_tok
+			res.register_advancement()
+			self.advance()
+
+			if self.current_tok.type != TokenType.EQ:
+				return res.failure(InvalidSyntaxError(
+					self.current_tok.pos_start, self.current_tok.pos_end,
+					"Expected '='"
+				))
+			
+			res.register_advancement()
+			self.advance()
+			expr = res.register(self.expr())
+
+			if res.error: return res
+			return res.success(VarAssignNode(var_name, expr))
 		if self.current_tok.matches(TokenType.KEYWORD, 'print'):
 			tok = self.current_tok
 			res.register_advancement()
@@ -215,34 +242,6 @@ class Parser:
 		return self.bin_op(self.factor, (TokenType.MUL, TokenType.DIV))
 
 	def expr(self):
-		res = ParseResult()
-		if self.current_tok.matches(TokenType.TYPE, 'int'):
-			res.register_advancement()
-			self.advance()
-
-			if self.current_tok.type != TokenType.IDENTIFIER:
-				return res.failure(InvalidSyntaxError(
-					self.current_tok.pos_start, self.current_tok.pos_end,
-					"Expected identifier"
-				))
-			
-			var_name = self.current_tok
-			res.register_advancement()
-			self.advance()
-
-			if self.current_tok.type != TokenType.EQ:
-				return res.failure(InvalidSyntaxError(
-					self.current_tok.pos_start, self.current_tok.pos_end,
-					"Expected '='"
-				))
-			
-			res.register_advancement()
-			self.advance()
-			expr = res.register(self.expr())
-
-			if res.error: return res
-			return res.success(VarAssignNode(var_name, expr))
-
 		return self.bin_op(self.term, (TokenType.PLUS, TokenType.MINUS))
 
 	###################################

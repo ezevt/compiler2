@@ -1,8 +1,2 @@
 int x = 10
-print(x)
-x = 3
-print(x)
-x = 123
-print(x)
-x = 42
-print(x)
+print(x * 2 + 11)
